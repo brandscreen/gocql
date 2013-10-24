@@ -10,12 +10,12 @@ change in the future. The old "datbase/sql" based package is now called
 maintained.
 
 Project Website: http://tux21b.org/gocql/<br>
-API documentation: http://godoc.org/tux21b.org/v1/gocql
+API documentation: http://godoc.org/github.com/brandscreen/gocql
 
 Installation
 ------------
 
-    go get tux21b.org/v1/gocql
+    go get github.com/brandscreen/gocql
 
 
 Features
@@ -48,8 +48,8 @@ import (
 	"fmt"
 	"log"
 
-	"tux21b.org/v1/gocql"
-	"tux21b.org/v1/gocql/uuid"
+	"github.com/brandscreen/gocql"
+	"github.com/brandscreen/gocql/uuid"
 )
 
 func main() {

@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"tux21b.org/v1/gocql"
-	"tux21b.org/v1/gocql/uuid"
+	"github.com/brandscreen/gocql"
+	"github.com/brandscreen/gocql/uuid"
 )
 
 var cluster *gocql.ClusterConfig
