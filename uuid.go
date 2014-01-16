@@ -16,7 +16,6 @@ import (
 	"net"
 	"sync/atomic"
 	"time"
-	"github.com/brandscreen/gocql"
 )
 
 type UUID [16]byte
