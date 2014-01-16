@@ -1,6 +1,12 @@
 gocql
 =====
 
+<<<<<<< HEAD
+=======
+[![Build Status](https://travis-ci.org/tux21b/gocql.png?branch=master)](https://travis-ci.org/tux21b/gocql)
+[![GoDoc](http://godoc.org/tux21b.org/v1/gocql?status.png)](http://godoc.org/tux21b.org/v1/gocql)
+
+>>>>>>> a4d5e86a5e5a8fc0699ec56f9d4d566e631a5296
 **Package Status:** Alpha 
 
 Package gocql implements a fast and robust Cassandra client for the
@@ -13,7 +19,11 @@ change in the future. The old "datbase/sql" based package is now called
 maintained.
 
 Project Website: http://tux21b.org/gocql/<br>
+<<<<<<< HEAD
 API documentation: http://godoc.org/github.com/brandscreen/gocql
+=======
+API documentation: http://godoc.org/tux21b.org/v1/gocql<br>
+>>>>>>> a4d5e86a5e5a8fc0699ec56f9d4d566e631a5296
 Discussions: https://groups.google.com/forum/#!forum/gocql
 
 Installation
@@ -54,8 +64,12 @@ import (
 	"fmt"
 	"log"
 
+<<<<<<< HEAD
 	"github.com/brandscreen/gocql"
 	"github.com/brandscreen/gocql/uuid"
+=======
+	"tux21b.org/v1/gocql"
+>>>>>>> a4d5e86a5e5a8fc0699ec56f9d4d566e631a5296
 )
 
 func main() {
@@ -63,16 +77,16 @@ func main() {
 	cluster := gocql.NewCluster("192.168.1.1", "192.168.1.2", "192.168.1.3")
 	cluster.Keyspace = "example"
 	cluster.Consistency = gocql.Quorum
-	session := cluster.CreateSession()
+	session, _ := cluster.CreateSession()
 	defer session.Close()
 
 	// insert a tweet
 	if err := session.Query(`INSERT INTO tweet (timeline, id, text) VALUES (?, ?, ?)`,
-		"me", uuid.TimeUUID(), "hello world").Exec(); err != nil {
+		"me", gocql.TimeUUID(), "hello world").Exec(); err != nil {
 		log.Fatal(err)
 	}
 
-	var id uuid.UUID
+	var id gocql.UUID
 	var text string
 
 	// select a single tweet
@@ -96,6 +110,6 @@ func main() {
 License
 -------
 
-> Copyright (c) 2012 The gocql Authors. All rights reserved.
+> Copyright (c) 2012-2014 The gocql Authors. All rights reserved.
 > Use of this source code is governed by a BSD-style
 > license that can be found in the LICENSE file.
