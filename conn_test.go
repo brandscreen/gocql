@@ -45,7 +45,7 @@ func TestClosed(t *testing.T) {
 	}
 	session.Close()
 
-	if err := session.Query("void").Exec(); err != ErrUnavailable {
+	if err := session.Query("void").Exec(); err.Error() != "use of closed network connection" {
 		t.Errorf("expected %#v, got %#v", ErrUnavailable, err)
 	}
 }
