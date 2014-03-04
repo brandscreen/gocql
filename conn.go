@@ -218,9 +218,9 @@ func (c *Conn) exec(op operation, trace Tracer) (interface{}, error) {
 		c.uniq <- id
 		c.conn.Close()
 		if n > 0 {
-			return nil, ErrProtocol
+			return nil, err
 		}
-		return nil, ErrUnavailable
+		return nil, err
 	}
 
 	reply := <-call.resp
