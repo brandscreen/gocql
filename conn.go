@@ -6,7 +6,6 @@ package gocql
 
 import (
 	"bufio"
-	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -132,8 +131,7 @@ func (c *Conn) serve() {
 		c.dispatch(resp)
 	}
 
-	c.conn.Close()
-	c.isClosed = true
+	c.Close()
 	for id := 0; id < len(c.calls); id++ {
 		req := &c.calls[id]
 		if atomic.LoadInt32(&req.active) == 1 {
@@ -148,9 +146,6 @@ func (c *Conn) recv() (frame, error) {
 	c.conn.SetReadDeadline(time.Now().Add(c.timeout))
 	n, last, pinged := 0, 0, false
 	for n < len(resp) {
-		if c.isClosed {
-			log.Println("Reading from a closed connection")
-		}
 		nn, err := c.r.Read(resp[n:])
 		n += nn
 		if err != nil {
@@ -187,7 +182,7 @@ func (c *Conn) execSimple(op operation) (interface{}, error) {
 	f, err := op.encodeFrame(c.version, nil)
 	f.setLength(len(f) - headerSize)
 	if _, err := c.conn.Write([]byte(f)); err != nil {
-		c.conn.Close()
+		c.Close()
 		return nil, err
 	}
 	if f, err = c.recv(); err != nil {
@@ -221,15 +216,9 @@ func (c *Conn) exec(op operation, trace Tracer) (interface{}, error) {
 	atomic.AddInt32(&c.nwait, 1)
 	atomic.StoreInt32(&call.active, 1)
 
-	if c.isClosed {
-		log.Println("Writing to closed connections!")
-	}
-	if n, err := c.conn.Write(req); err != nil {
+	if _, err := c.conn.Write(req); err != nil {
 		c.uniq <- id
-		c.isClosed = true
-		c.conn.Close()
-		c.cluster.HandleError(c, ErrProtocol, true)
-		log.Println(err, n)
+		c.Close()
 		return nil, err
 	}
 
@@ -369,6 +358,9 @@ func (c *Conn) executeQuery(qry *Query) *Iter {
 }
 
 func (c *Conn) Pick(qry *Query) *Conn {
+	if c.isClosed {
+		return nil
+	}
 	return c
 }
 
