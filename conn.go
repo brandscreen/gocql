@@ -228,6 +228,7 @@ func (c *Conn) exec(op operation, trace Tracer) (interface{}, error) {
 		c.uniq <- id
 		c.isClosed = true
 		c.conn.Close()
+		c.cluster.HandleError(c, ErrProtocol, true)
 		log.Println(err, n)
 		return nil, err
 	}
