@@ -6,6 +6,7 @@ package gocql
 
 import (
 	"bufio"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -56,6 +57,7 @@ type Conn struct {
 	compressor Compressor
 	addr       string
 	version    uint8
+	isClosed   bool
 }
 
 // Connect establishes a connection to a Cassandra node.
@@ -82,6 +84,7 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 		addr:       conn.RemoteAddr().String(),
 		cluster:    cluster,
 		compressor: cfg.Compressor,
+		isClosed:   false,
 	}
 	for i := 0; i < cap(c.uniq); i++ {
 		c.uniq <- uint8(i)
@@ -130,6 +133,7 @@ func (c *Conn) serve() {
 	}
 
 	c.conn.Close()
+	c.isClosed = true
 	for id := 0; id < len(c.calls); id++ {
 		req := &c.calls[id]
 		if atomic.LoadInt32(&req.active) == 1 {
@@ -144,6 +148,9 @@ func (c *Conn) recv() (frame, error) {
 	c.conn.SetReadDeadline(time.Now().Add(c.timeout))
 	n, last, pinged := 0, 0, false
 	for n < len(resp) {
+		if c.isClosed {
+			log.Println("Reading from a closed connection")
+		}
 		nn, err := c.r.Read(resp[n:])
 		n += nn
 		if err != nil {
@@ -214,12 +221,14 @@ func (c *Conn) exec(op operation, trace Tracer) (interface{}, error) {
 	atomic.AddInt32(&c.nwait, 1)
 	atomic.StoreInt32(&call.active, 1)
 
+	if c.isClosed {
+		log.Println("Writing to closed connections!")
+	}
 	if n, err := c.conn.Write(req); err != nil {
 		c.uniq <- id
+		c.isClosed = true
 		c.conn.Close()
-		if n > 0 {
-			return nil, err
-		}
+		log.Println(err, n)
 		return nil, err
 	}
 
@@ -363,6 +372,7 @@ func (c *Conn) Pick(qry *Query) *Conn {
 }
 
 func (c *Conn) Close() {
+	c.isClosed = true
 	c.conn.Close()
 }
 
