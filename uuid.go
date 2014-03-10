@@ -96,14 +96,17 @@ func UUIDFromBytes(input []byte) (UUID, error) {
 
 // RandomUUID generates a totally random UUID (version 4) as described in
 // RFC 4122.
-func RandomUUID() UUID {
+func RandomUUID() (UUID, error) {
 	var u UUID
-	io.ReadFull(rand.Reader, u[:])
+	_, err := io.ReadFull(rand.Reader, u[:])
+	if err != nil {
+		return u, err
+	}
 	u[6] &= 0x0F // clear version
 	u[6] |= 0x40 // set version to 4 (random uuid)
 	u[8] &= 0x3F // clear variant
 	u[8] |= 0x80 // set to IETF variant
-	return u
+	return u, nil
 }
 
 var timeBase = time.Date(1582, time.October, 15, 0, 0, 0, 0, time.UTC).Unix()
@@ -204,4 +207,24 @@ func (u UUID) Time() time.Time {
 	sec := t / 1e7
 	nsec := t % 1e7
 	return time.Unix(sec+timeBase, nsec).UTC()
+}
+
+// Marshaling for JSON
+func (u UUID) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + u.String() + `"`), nil
+}
+
+// Unmarshaling for JSON
+func (u *UUID) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	if len(str) != 38 {
+		return fmt.Errorf("invalid JSON UUID %s", str)
+	}
+
+	parsed, err := ParseUUID(str[1:37])
+	if err == nil {
+		copy(u[:], parsed[:])
+	}
+
+	return err
 }

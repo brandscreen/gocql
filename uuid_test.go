@@ -59,13 +59,33 @@ func TestPredefinedUUID(t *testing.T) {
 				t.Errorf("Version #%d: expected %d got %d", i, testsUUID[i].version, version)
 			}
 		}
+
+		json, err := uuid.MarshalJSON()
+		if err != nil {
+			t.Errorf("MarshalJSON #%d: %v", i, err)
+		}
+		expectedJson := `"` + testsUUID[i].input + `"`
+		if string(json) != expectedJson {
+			t.Errorf("MarshalJSON #%d: expected %v got %v", i, expectedJson, string(json))
+		}
+
+		var unmarshaled UUID
+		err = unmarshaled.UnmarshalJSON(json)
+		if err != nil {
+			t.Errorf("UnmarshalJSON #%d: %v", i, err)
+		}
+		if unmarshaled != uuid {
+			t.Errorf("UnmarshalJSON #%d: expected %v got %v", i, uuid, unmarshaled)
+		}
 	}
 }
 
 func TestRandomUUID(t *testing.T) {
 	for i := 0; i < 20; i++ {
-		uuid := RandomUUID()
-
+		uuid, err := RandomUUID()
+		if err != nil {
+			t.Errorf("RandomUUID: %v", err)
+		}
 		if variant := uuid.Variant(); variant != VariantIETF {
 			t.Errorf("wrong variant. expected %d got %d", VariantIETF, variant)
 		}

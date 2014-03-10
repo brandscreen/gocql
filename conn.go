@@ -6,10 +6,13 @@ package gocql
 
 import (
 	"bufio"
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"code.google.com/p/snappy-go/snappy"
 )
@@ -19,22 +22,44 @@ const flagResponse = 0x80
 const maskVersion = 0x7F
 
 type Cluster interface {
-	//HandleAuth(addr, method string) ([]byte, Challenger, error)
 	HandleError(conn *Conn, err error, closed bool)
 	HandleKeyspace(conn *Conn, keyspace string)
-	// Authenticate(addr string)
 }
 
-/* type Challenger interface {
-	Challenge(data []byte) ([]byte, error)
-} */
+type Authenticator interface {
+	Challenge(req []byte) (resp []byte, auth Authenticator, err error)
+	Success(data []byte) error
+}
+
+type PasswordAuthenticator struct {
+	Username string
+	Password string
+}
+
+func (p PasswordAuthenticator) Challenge(req []byte) ([]byte, Authenticator, error) {
+	if string(req) != "org.apache.cassandra.auth.PasswordAuthenticator" {
+		return nil, nil, fmt.Errorf("unexpected authenticator %q", req)
+	}
+	resp := make([]byte, 2+len(p.Username)+len(p.Password))
+	resp[0] = 0
+	copy(resp[1:], p.Username)
+	resp[len(p.Username)+1] = 0
+	copy(resp[2+len(p.Username):], p.Password)
+	return resp, nil, nil
+}
+
+func (p PasswordAuthenticator) Success(data []byte) error {
+	return nil
+}
 
 type ConnConfig struct {
-	ProtoVersion int
-	CQLVersion   string
-	Timeout      time.Duration
-	NumStreams   int
-	Compressor   Compressor
+	ProtoVersion  int
+	CQLVersion    string
+	Timeout       time.Duration
+	NumStreams    int
+	Compressor    Compressor
+	Authenticator Authenticator
+	Keepalive     time.Duration
 }
 
 // Conn is a single connection to a Cassandra node. It can be used to execute
@@ -54,6 +79,7 @@ type Conn struct {
 
 	cluster    Cluster
 	compressor Compressor
+	auth       Authenticator
 	addr       string
 	version    uint8
 	isClosed   bool
@@ -66,6 +92,7 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if cfg.NumStreams <= 0 || cfg.NumStreams > 128 {
 		cfg.NumStreams = 128
 	}
@@ -84,7 +111,13 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 		cluster:    cluster,
 		compressor: cfg.Compressor,
 		isClosed:   false,
+		auth:       cfg.Authenticator,
 	}
+
+	if cfg.Keepalive > 0 {
+		c.setKeepalive(cfg.Keepalive)
+	}
+
 	for i := 0; i < cap(c.uniq); i++ {
 		c.uniq <- uint8(i)
 	}
@@ -99,32 +132,67 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 }
 
 func (c *Conn) startup(cfg *ConnConfig) error {
-	req := &startupFrame{
-		CQLVersion: cfg.CQLVersion,
-	}
+	compression := ""
 	if c.compressor != nil {
-		req.Compression = c.compressor.Name()
+		compression = c.compressor.Name()
 	}
-	resp, err := c.execSimple(req)
-	if err != nil {
-		return err
+	var req operation = &startupFrame{
+		CQLVersion:  cfg.CQLVersion,
+		Compression: compression,
 	}
-	switch x := resp.(type) {
-	case readyFrame:
-	case error:
-		return x
-	default:
-		return ErrProtocol
+	var challenger Authenticator
+	for {
+		resp, err := c.execSimple(req)
+		if err != nil {
+			return err
+		}
+		switch x := resp.(type) {
+		case readyFrame:
+			return nil
+		case error:
+			return x
+		case authenticateFrame:
+			if c.auth == nil {
+				return fmt.Errorf("authentication required (using %q)", x.Authenticator)
+			}
+			var resp []byte
+			resp, challenger, err = c.auth.Challenge([]byte(x.Authenticator))
+			if err != nil {
+				return err
+			}
+			req = &authResponseFrame{resp}
+		case authChallengeFrame:
+			if challenger == nil {
+				return fmt.Errorf("authentication error (invalid challenge)")
+			}
+			var resp []byte
+			resp, challenger, err = challenger.Challenge(x.Data)
+			if err != nil {
+				return err
+			}
+			req = &authResponseFrame{resp}
+		case authSuccessFrame:
+			if challenger != nil {
+				return challenger.Success(x.Data)
+			}
+			return nil
+		default:
+			return ErrProtocol
+		}
 	}
-	return nil
 }
 
 // Serve starts the stream multiplexer for this connection, which is required
 // to execute any queries. This method runs as long as the connection is
 // open and is therefore usually called in a separate goroutine.
 func (c *Conn) serve() {
+	var (
+		err  error
+		resp frame
+	)
+
 	for {
-		resp, err := c.recv()
+		resp, err = c.recv()
 		if err != nil {
 			break
 		}
@@ -135,10 +203,10 @@ func (c *Conn) serve() {
 	for id := 0; id < len(c.calls); id++ {
 		req := &c.calls[id]
 		if atomic.LoadInt32(&req.active) == 1 {
-			req.resp <- callResp{nil, ErrProtocol}
+			req.resp <- callResp{nil, err}
 		}
 	}
-	c.cluster.HandleError(c, ErrProtocol, true)
+	c.cluster.HandleError(c, err, true)
 }
 
 func (c *Conn) recv() (frame, error) {
@@ -294,12 +362,25 @@ func (c *Conn) prepareStatement(stmt string, trace Tracer) (*queryInfo, error) {
 
 func (c *Conn) executeQuery(qry *Query) *Iter {
 	op := &queryFrame{
-		Stmt:      qry.stmt,
+		Stmt:      strings.TrimSpace(qry.stmt),
 		Cons:      qry.cons,
 		PageSize:  qry.pageSize,
 		PageState: qry.pageState,
 	}
-	if len(qry.values) > 0 {
+	stmtType := op.Stmt
+	if n := strings.IndexFunc(stmtType, unicode.IsSpace); n >= 0 {
+		stmtType = strings.ToLower(stmtType[:n])
+		switch stmtType {
+		case "begin":
+			stmtTail := strings.TrimSpace(op.Stmt[n:])
+			if n := strings.IndexFunc(stmtTail, unicode.IsSpace); n >= 0 {
+				stmtType = stmtType + " " + strings.ToLower(stmtTail[:n])
+			}
+		}
+	}
+	switch stmtType {
+	case "select", "insert", "update", "delete", "begin batch":
+		// Prepare all DML queries. Other queries can not be prepared.
 		info, err := c.prepareStatement(qry.stmt, qry.trace)
 		if err != nil {
 			return &Iter{err: err}
@@ -497,6 +578,12 @@ func (c *Conn) decodeFrame(f frame, trace Tracer) (rval interface{}, err error) 
 		default:
 			return nil, ErrProtocol
 		}
+	case opAuthenticate:
+		return authenticateFrame{f.readString()}, nil
+	case opAuthChallenge:
+		return authChallengeFrame{f.readBytes()}, nil
+	case opAuthSuccess:
+		return authSuccessFrame{f.readBytes()}, nil
 	case opSupported:
 		return supportedFrame{}, nil
 	case opError:

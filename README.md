@@ -1,7 +1,7 @@
 gocql
 =====
-[![Build Status](https://travis-ci.org/tux21b/gocql.png?branch=master)](https://travis-ci.org/tux21b/gocql)
-[![GoDoc](http://godoc.org/tux21b.org/v1/gocql?status.png)](http://godoc.org/tux21b.org/v1/gocql)
+[![Build Status](https://travis-ci.org/gocql/gocql.png?branch=master)](https://travis-ci.org/gocql/gocql)
+[![GoDoc](http://godoc.org/github.com/gocql/gocql?status.png)](http://godoc.org/github.com/gocql/gocql)
 
 **Package Status:** Alpha 
 
@@ -9,20 +9,15 @@ Package gocql implements a fast and robust Cassandra client for the
 Go programming language.
 
 
-**Attention:** This package is currently actively developed and the API may
-change in the future. The old "datbase/sql" based package is now called
-[gocqldriver](https://github.com/tux21b/gocqldriver) and is no longer
-maintained.
-
-Project Website: http://tux21b.org/gocql/<br>
+Project Website: http://gocql.github.io/<br>
 API documentation: http://godoc.org/github.com/brandscreen/gocql
 Discussions: https://groups.google.com/forum/#!forum/gocql
 
 Installation
 ------------
 
-    go get github.com/brandscreen/gocql
 
+    go get github.com/brandscreen/gocql
 
 Features
 --------
@@ -44,7 +39,7 @@ Features
 * Automatic query preparation
 * Support for query tracing
 
-Please visit the [Roadmap](https://github.com/tux21b/gocql/wiki/Roadmap) page to see what is on the horizion.
+Please visit the [Roadmap](https://github.com/gocql/gocql/wiki/Roadmap) page to see what is on the horizion.
 
 Example
 -------
@@ -55,9 +50,7 @@ package main
 import (
 	"fmt"
 	"log"
-
 	"github.com/brandscreen/gocql"
-	"github.com/brandscreen/gocql/uuid"
 )
 
 func main() {
@@ -94,6 +87,12 @@ func main() {
 	}
 }
 ```
+
+Other Projects
+--------------
+
+* [cqlc](http://relops.com/cqlc) generates gocql compliant code from your Cassandra schema so that you can write type safe CQL statements in Go with a natural query syntax.
+* [gocqldriver](https://github.com/tux21b/gocqldriver) is the predecessor of gocql based on Go's "database/sql" package. This project isn't maintained anymore, because Cassandra wasn't a good fit for the traditional "database/sql" API. Use this package instead.
 
 License
 -------
