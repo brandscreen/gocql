@@ -60,6 +60,7 @@ type ConnConfig struct {
 	Compressor    Compressor
 	Authenticator Authenticator
 	Keepalive     time.Duration
+	SetupTimeout  time.Duration
 }
 
 // Conn is a single connection to a Cassandra node. It can be used to execute
@@ -88,7 +89,7 @@ type Conn struct {
 // Connect establishes a connection to a Cassandra node.
 // You must also call the Serve method before you can execute any queries.
 func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
-	conn, err := net.DialTimeout("tcp", addr, cfg.Timeout)
+	conn, err := net.DialTimeout("tcp", addr, cfg.SetupTimeout)
 	if err != nil {
 		return nil, err
 	}

@@ -35,6 +35,7 @@ type ClusterConfig struct {
 	Authenticator   Authenticator // authenticator (default: nil)
 	RetryPolicy     RetryPolicy   // Default retry policy to use for queries (default: 0)
 	SocketKeepalive time.Duration // The keepalive period to use, enabled if > 0 (default: 0)
+	SetupTimeout    time.Duration // Dial timeout
 }
 
 // NewCluster generates a new config for the default cluster implementation.
@@ -52,6 +53,7 @@ func NewCluster(hosts ...string) *ClusterConfig {
 		StartupMin:     len(hosts)/2 + 1,
 		StartupTimeout: 5 * time.Second,
 		Consistency:    Quorum,
+		SetupTimeout:   10 * time.Millisecond,
 	}
 	return cfg
 }
@@ -121,6 +123,7 @@ func (c *clusterImpl) connect(addr string) {
 		Compressor:    c.cfg.Compressor,
 		Authenticator: c.cfg.Authenticator,
 		Keepalive:     c.cfg.SocketKeepalive,
+		SetupTimeout:  c.cfg.SetupTimeout,
 	}
 
 	delay := c.cfg.DelayMin
