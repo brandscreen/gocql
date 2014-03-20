@@ -124,6 +124,7 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 	}
 
 	if err := c.startup(&cfg); err != nil {
+		conn.Close()
 		return nil, err
 	}
 
