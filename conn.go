@@ -7,7 +7,9 @@ package gocql
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -86,6 +88,11 @@ type Conn struct {
 	isClosed   bool
 }
 
+func finalize(c *Conn) {
+	c.conn.Close()
+	log.Println("Finalizer called")
+}
+
 // Connect establishes a connection to a Cassandra node.
 // You must also call the Serve method before you can execute any queries.
 func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
@@ -114,6 +121,8 @@ func Connect(addr string, cfg ConnConfig, cluster Cluster) (*Conn, error) {
 		isClosed:   false,
 		auth:       cfg.Authenticator,
 	}
+
+	runtime.SetFinalizer(c, finalize)
 
 	if cfg.Keepalive > 0 {
 		c.setKeepalive(cfg.Keepalive)
