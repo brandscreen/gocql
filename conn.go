@@ -7,7 +7,6 @@ package gocql
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"net"
 	"runtime"
 	"strings"
@@ -90,7 +89,6 @@ type Conn struct {
 
 func finalize(c *Conn) {
 	c.conn.Close()
-	log.Println("Finalizer called")
 }
 
 // Connect establishes a connection to a Cassandra node.
@@ -389,6 +387,7 @@ func (c *Conn) executeQuery(qry *Query) *Iter {
 			}
 		}
 	}
+
 	switch stmtType {
 	case "select", "insert", "update", "delete", "begin batch":
 		// Prepare all DML queries. Other queries can not be prepared.
@@ -410,6 +409,7 @@ func (c *Conn) executeQuery(qry *Query) *Iter {
 	if err != nil {
 		return &Iter{err: err}
 	}
+
 	switch x := resp.(type) {
 	case resultVoidFrame:
 		return &Iter{}

@@ -89,7 +89,7 @@ func (s *Session) Close() {
 	s.Node.Close()
 }
 
-func (s *Session) executeQuery(qry *Query) *Iter {
+func (s *Session) ExecuteQuery(qry *Query) *Iter {
 	var itr *Iter
 	count := 0
 	for count <= qry.rt.NumRetries {
@@ -146,7 +146,7 @@ type Query struct {
 	pageState []byte
 	prefetch  float64
 	trace     Tracer
-	session   *Session
+	session   ISession
 	rt        RetryPolicy
 }
 
@@ -190,14 +190,14 @@ func (q *Query) RetryPolicy(r RetryPolicy) *Query {
 
 // Exec executes the query without returning any rows.
 func (q *Query) Exec() error {
-	iter := q.session.executeQuery(q)
+	iter := q.session.ExecuteQuery(q)
 	return iter.err
 }
 
 // Iter executes the query and returns an iterator capable of iterating
 // over all results.
 func (q *Query) Iter() *Iter {
-	return q.session.executeQuery(q)
+	return q.session.ExecuteQuery(q)
 }
 
 // Scan executes the query, copies the columns of the first selected
@@ -307,7 +307,7 @@ type nextIter struct {
 
 func (n *nextIter) fetch() *Iter {
 	n.once.Do(func() {
-		n.next = n.qry.session.executeQuery(&n.qry)
+		n.next = n.qry.session.ExecuteQuery(&n.qry)
 	})
 	return n.next
 }
